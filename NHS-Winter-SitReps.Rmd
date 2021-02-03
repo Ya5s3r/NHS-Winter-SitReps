@@ -100,3 +100,20 @@ header_1 <- read_xlsx(path = filename, sheet = "G&A beds", skip = 13, col_names 
 header_1
 ```
 
+```{r}
+# this step convert header_1 to columns, fill in the gaps and convert into vector
+header_1 <- header_1 %>% 
+    t() %>% 
+    as.data.frame() %>% 
+    fill(.,'V1') 
+
+header_1 <- as.character(header_1$V1)  
+  
+header_1 # now as character vector
+
+```
+
+```{r}
+# Extract second header and convert into vector
+```
+
