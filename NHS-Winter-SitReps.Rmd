@@ -1,0 +1,102 @@
+---
+title: "NHS-Winter-SitReps"
+author: "Yasser"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+extrafont::loadfonts(device="win")
+
+# Required packages
+
+library(tidyverse)
+library(readxl)
+library(lubridate)
+library(geojsonio)
+library(broom)
+library(maptools)
+
+
+```
+
+Download data from NHS Digital.
+
+```{r}
+url <- "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2021/01/UEC-Daily-SitRep-Acute-Web-File-Timeseries-4.xlsx"
+filename <- "Winter-data-timeseries.xlsx"
+download.file(url, destfile = filename, mode = "wb")
+
+```
+Tackling multi-line headers with merged cells.
+Start with General and Acute Beds and the Beds Occupied by Long Stay Patients 
+
+These two tabs contain metadata in the first 13 lines followed by two line headers. Several columns containing variables (second header line) are grouped within dates (first header line) and the cells around the dates are merged. Also some empty columns and rows.
+
+First explore the data file as is...
+
+```{r}
+example_indicator <- "G&A beds"
+
+# First line containes dates in merged cells (5 cells merged each in this case)
+header_1 <- read_xlsx(path = filename, sheet = example_indicator, 
+                      skip = 13, col_names = FALSE, 
+                      n_max = 1)
+
+# Second line contains variable names
+header_2 <- read_xlsx(path = filename, sheet = example_indicator, 
+                      skip = 14, col_names = FALSE, 
+                      n_max = 1)
+```
+
+Check dimensions of dataframes.
+
+```{r}
+dim(header_1) # 167
+
+dim(header_2) # 172
+
+# there is a difference in the number of columns - header_1 is shorter by 5
+# first 10 columns from header_1
+header_1[1:10]
+# starts with the date colum, we lost the few columns that contain trust code, name etc. in line 2
+
+# End of header 1
+header_1[(ncol(header_1)-10):ncol(header_1)]
+
+```
+
+```{r}
+# try the same with header)2
+
+header_2[1:10]
+# End
+header_2[(ncol(header_1)-10):ncol(header_1)]
+
+```
+
+Header_1 was short due to :
+
+In the Excel sheet, the first few cells in this line were empty and when the line was read in, they were converted to NA. The read_xlsx() function then discarded these empty columns (probably) because they were at the beginning.
+There were also some merged cells. During import they were separated and, if empty, converted to NA . Empty columns at the end of the header line also seem to be discarded by read_xlsx().
+
+Did the following to tidy the data appropriately.
+
+```{r}
+# this extracts all the raw data, without columns
+data <- read_xlsx(path = filename, sheet = "G&A beds", skip = 15, col_names = FALSE)
+data
+```
+
+```{r}
+# Extract first header line containing dates and fill the gaps: 
+# Read 2 lines but guess the data types only from the first row
+# Based on the first line, the function expects dates and 
+# convert the second row to NA 
+# As a result, the right length is preserved. 
+
+header_1 <- read_xlsx(path = filename, sheet = "G&A beds", skip = 13, col_names = FALSE, n_max = 2, guess_max = 1)
+header_1
+```
+
