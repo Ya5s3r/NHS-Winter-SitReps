@@ -209,6 +209,11 @@ import_sitrep <- function(file, indicator){
 }
 ```
 
+For an overview of the pivot functions: https://tidyr.tidyverse.org/articles/pivot.html
+
+And overview of tidy-select `last_col()` https://tidyr.tidyverse.org/reference/tidyr_tidy_select.html
+
+And overview of mutate multiple columns `mutate_at` https://dplyr.tidyverse.org/reference/mutate_all.html
 
 We can now use this function to read and combine the following tabs: ‘General and acute beds’ and ‘Beds occupied by long-stay patients’
 
@@ -225,6 +230,8 @@ dim(Sitrep_daily)
 head(Sitrep_daily)
 # there are missing values in the length of stay columns as this data didn't start until 30th Nov 2020
 ```
+
+Overview of `reduce()` https://blog.zhaw.ch/datascience/r-reduce-applys-lesser-known-brother/
 
 Data is now tidy.
 
