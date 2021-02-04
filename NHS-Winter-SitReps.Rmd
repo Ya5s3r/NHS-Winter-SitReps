@@ -150,9 +150,8 @@ data_tidy <- data %>%
   #spread(key = 'type', value = 'value')
   pivot_wider(names_from = "type", values_from = "value") %>% # this has replaced spread
   # convert to the right variable types
-  mutate(date = as.Date(date),
-         total.beds.open = as.numeric(total.beds.open),
-         total.beds.occd = as.numeric(total.beds.occd)) 
+  mutate(date = as.Date(date)) %>%
+  mutate_at(vars(5:ncol(.)), funs(as.numeric))
   
 ```
 ```{r}
@@ -203,9 +202,8 @@ import_sitrep <- function(file, indicator){
     #spread(key = 'type', value = 'value')
     pivot_wider(names_from = "type", values_from = "value") %>% # this has replaced spread
     # convert to the right variable types
-    mutate(date = as.Date(date),
-           total.beds.open = as.numeric(total.beds.open),
-           total.beds.occd = as.numeric(total.beds.occd))
+    mutate(date = as.Date(date)) %>%
+    mutate_at(vars(5:ncol(.)), funs(as.numeric))
   
   data_tidy
 }
@@ -213,5 +211,24 @@ import_sitrep <- function(file, indicator){
 
 
 We can now use this function to read and combine the following tabs: ‘General and acute beds’ and ‘Beds occupied by long-stay patients’
+
+```{r}
+sheets_to_import <- c("G&A beds", "Beds Occ by long stay patients")
+
+Sitrep_daily <- sheets_to_import %>% 
+  map(import_sitrep,
+      file = filename) %>%
+  reduce(left_join, 
+         by = c("nhs.england.region", "code", "name", "date"))
+
+dim(Sitrep_daily)
+head(Sitrep_daily)
+# there are missing values in the length of stay columns as this data didn't start until 30th Nov 2020
+```
+
+Data is now tidy.
+
+Data Cleaning:
+
 
 
