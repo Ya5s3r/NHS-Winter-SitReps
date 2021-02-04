@@ -115,5 +115,103 @@ header_1 # now as character vector
 
 ```{r}
 # Extract second header and convert into vector
+header_2 <- read_xlsx(path = filename, sheet = "G&A beds", skip = 14, col_names = FALSE, n_max = 1)
+header_2
+
 ```
+
+```{r}
+# Concatenating headers to create column names
+# Replace NAs with a placeholder, otherwise concatenation fails
+column_names <- str_c(str_replace_na(header_1, "placeholder"), str_replace_na(header_2, "placeholder"), sep = "_")
+column_names
+```
+
+```{r}
+# Add column names to data and tidy
+names(data) <- tolower(column_names)
+names(data) <- gsub(" ", ".", names(data))
+names(data) <- gsub("placeholder_", "", names(data))
+names(data) <- gsub("'", "", names(data))
+names(data) <- gsub("<", "less.than", names(data))
+names(data) <- gsub(">", "more.than", names(data))
+data
+```
+
+```{r}
+# Tidy table
+data_tidy <- data %>% 
+  select(-na) %>% # removes empty column here named "na"
+  filter(!is.na(name)) %>% 
+  # Separate variables and dates
+  #gather(-1, -2, -3, key = "date_type", value = 'value')
+  pivot_longer(4:last_col(), names_to = "date_type", values_to = "value") %>% # this has replaced the gather function
+  separate(date_type, into = c("date", "type"), sep = "_") %>%
+  #spread(key = 'type', value = 'value')
+  pivot_wider(names_from = "type", values_from = "value") %>% # this has replaced spread
+  # convert to the right variable types
+  mutate(date = as.Date(date),
+         total.beds.open = as.numeric(total.beds.open),
+         total.beds.occd = as.numeric(total.beds.occd)) 
+  
+```
+```{r}
+# all combined in the following function:
+
+import_sitrep <- function(file, indicator){
+  
+  data <- read_xlsx(path = file, sheet = indicator, skip = 15, col_names = FALSE) 
+  
+  # Extract first header line containing dates and fill the gaps: 
+  # Read 2 lines but guess the data types only from the first row
+  # R will be looking for dates and convert the second row
+  # to NA but the right length will be preserved. 
+  header_1 <- read_xlsx(path = file, sheet = indicator, skip = 13, col_names = FALSE, n_max = 2, guess_max = 1)
+  
+  # Convert to columns, fill in the gaps and convert into vector
+  header_1 <- header_1 %>% 
+    t() %>% 
+    as.data.frame() %>% 
+    fill(.,'V1') 
+  header_1 <- as.character(header_1$V1)  
+  
+  # Extract second header and convert into vector
+  header_2 <- read_xlsx(path = file, sheet = indicator, skip = 14, col_names = FALSE, n_max = 1)
+  header_2 <- unname(unlist(header_2[1,]))
+  
+  # Concatenating headers to create column names
+  # Replace NAs with a placeholder, otherwise concatenation fails
+  column_names <- str_c(str_replace_na(header_1, "placeholder"), str_replace_na(header_2, "placeholder"), sep = "_")
+  
+  # Add column names to data and tidy
+  names(data) <- tolower(column_names)
+  names(data) <- gsub(" ", ".", names(data))
+  names(data) <- gsub("placeholder_", "", names(data))
+  names(data) <- gsub("'", "", names(data))
+  names(data) <- gsub("<", "less.than", names(data))
+  names(data) <- gsub(">", "more.than", names(data))
+  
+  # Tidy up table
+  data_tidy <- data %>% 
+    # remove empty column and line
+    select(-placeholder) %>% 
+    filter(!is.na(name)) %>%
+    # Separate variables and dates
+    #gather(-1, -2, -3, key = "date_type", value = 'value')
+    pivot_longer(4:last_col(), names_to = "date_type", values_to = "value") %>% # this has replaced the gather function
+    separate(date_type, into = c("date", "type"), sep = "_") %>%
+    #spread(key = 'type', value = 'value')
+    pivot_wider(names_from = "type", values_from = "value") %>% # this has replaced spread
+    # convert to the right variable types
+    mutate(date = as.Date(date),
+           total.beds.open = as.numeric(total.beds.open),
+           total.beds.occd = as.numeric(total.beds.occd))
+  
+  data_tidy
+}
+```
+
+
+We can now use this function to read and combine the following tabs: ‘General and acute beds’ and ‘Beds occupied by long-stay patients’
+
 
