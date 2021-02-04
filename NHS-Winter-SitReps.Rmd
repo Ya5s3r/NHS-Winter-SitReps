@@ -230,5 +230,23 @@ Data is now tidy.
 
 Data Cleaning:
 
+Will remove some children hospitals due to difference patient profiles.
+
+```{r}
+# children's hospitals to be exlcuded for aggregation by STP
+trusts_to_exclude_for_aggregation <- c("RQ3", "RBS", "RCU")
+#Birmingham Women’s and Children’s NHS Foundation Trust (code RQ3), Alder Hey Children’s NHS Foundation Trust (RBS) and Sheffield Children’s NHS Foundation Trust (RCU)
+```
+
+Next step is to remove missing values, which can either be NAs or 0s - need to determine method.
+
+The authors of the original analysis described as follows:
+
+ - How likely is a ‘zero event’ for an indicator? For example, when counting beds in a large hospital the likelihood of having zero open seems small, but when counting long-stay patients having none seems possible.
+ - How consistent is the zero value, in that trust, over time? Or in plain English: does the value jump from a higher number to zero (and back) or is it hovering somewhere close to zero.
+
+Following analysis finds and resolves these issues:
+
+### Finding longer periods of missing data
 
 
