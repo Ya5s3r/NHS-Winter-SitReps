@@ -24,7 +24,7 @@ library(maptools)
 Download data from NHS Digital.
 
 ```{r}
-url <- "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2021/01/UEC-Daily-SitRep-Acute-Web-File-Timeseries-4.xlsx"
+url <- "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2021/02/UEC-Daily-SitRep-Acute-Web-File-Timeseries.xlsx"
 filename <- "Winter-data-timeseries.xlsx"
 download.file(url, destfile = filename, mode = "wb")
 
@@ -256,4 +256,39 @@ Following analysis finds and resolves these issues:
 
 ### Finding longer periods of missing data
 
+The author used the following criteria to exclude Trusts:
+
+ - Any missing values in any indicator on 4 or more consecutive days.
+ - Only in indicators where zeros would not be expected.
+ - This was due to the need to calculate weekly averages.
+ 
+Method to identify how many consecutive days were zero or NA:
+
+```{r}
+# Only check variables that are not derived from other variables
+cols_to_check_1 <- c("total.beds.open", "total.beds.occd")
+
+cols_to_check_2 <- c("more.than.7.days", "more.than.14.days", "more.than.21.days")
+# Separated the above into two as the length of stay variables in new data only start at 30th Nov
+
+# Find values that are 0 or NA
+# within any trust/variable combination
+
+Sitrep_missing_or_zero <- Sitrep_daily %>% 
+  filter(!str_detect(name,"ENGLAND")) %>% # altered to reflect change in data since 18/19
+  select(!(cols_to_check_2)) %>% # only select variables that begin 2nd Nov first
+  #gather(cols_to_check, key = "variable", value = "value")
+  pivot_longer(cols_to_check_1, names_to = "variable", values_to = "value") %>% # replaced gather with pivot_longer
+  filter(value == 0 | is.na(value)) %>%
+  # Sort and assign a period ID to consecutive days
+  arrange(code, variable, date) %>%
+  group_by(code, variable) %>%
+  mutate(diff = c(0, diff(date)),
+         periodID = 1 + cumsum(diff > 1))
+
+# Summarise consecutive days that variables are missing
+
+```
+
+ 
 
