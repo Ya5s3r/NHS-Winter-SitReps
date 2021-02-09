@@ -276,9 +276,9 @@ cols_to_check_2 <- c("more.than.7.days", "more.than.14.days", "more.than.21.days
 
 Sitrep_missing_or_zero <- Sitrep_daily %>% 
   filter(!str_detect(name,"ENGLAND")) %>% # altered to reflect change in data since 18/19
-  select(!(cols_to_check_2)) %>% # only select variables that begin 2nd Nov first
+  select(!(all_of(cols_to_check_2))) %>% # only select variables that begin 2nd Nov first
   #gather(cols_to_check, key = "variable", value = "value")
-  pivot_longer(cols_to_check_1, names_to = "variable", values_to = "value") %>% # replaced gather with pivot_longer
+  pivot_longer(all_of(cols_to_check_1), names_to = "variable", values_to = "value") %>% # replaced gather with pivot_longer
   filter(value == 0 | is.na(value)) %>%
   # Sort and assign a period ID to consecutive days
   arrange(code, variable, date) %>%
@@ -287,8 +287,79 @@ Sitrep_missing_or_zero <- Sitrep_daily %>%
          periodID = 1 + cumsum(diff > 1))
 
 # Summarise consecutive days that variables are missing
+Days_missing <- Sitrep_missing_or_zero %>% 
+  # remove trusts we already decided to exclude
+  filter(!is.element(code, trusts_to_exclude_for_aggregation)) %>% 
+  group_by(code, variable, periodID) %>% 
+  summarise(days = as.numeric((last(date) - first(date) + 1))) %>%
+  arrange(desc(days))
+
+Days_missing
+```
+
+
+```{r}
+# Now do the same with the length of stay variables
+Sitrep_missing_or_zero_LoS <- Sitrep_daily %>% 
+  filter(!str_detect(name,"ENGLAND"), date >= '2020-11-30') %>% # altered to reflect change in data since 18/19 and filters data for after 30th Nov (start date of LoS data)
+  select(!(all_of(cols_to_check_1))) %>% # only select length of stay variables
+  #gather(cols_to_check, key = "variable", value = "value")
+  pivot_longer(all_of(cols_to_check_2), names_to = "variable", values_to = "value") %>% # replaced gather with pivot_longer
+  filter(value == 0 | is.na(value)) %>%
+  # Sort and assign a period ID to consecutive days
+  arrange(code, variable, date) %>%
+  group_by(code, variable) %>%
+  mutate(diff = c(0, diff(date)),
+         periodID = 1 + cumsum(diff > 1))
+
+# Summarise consecutive days that variables are missing
+Days_missing_LoS <- Sitrep_missing_or_zero_LoS %>% 
+  # remove trusts we already decided to exclude
+  filter(!is.element(code, trusts_to_exclude_for_aggregation)) %>% 
+  group_by(code, variable, periodID) %>% 
+  summarise(days = as.numeric((last(date) - first(date) + 1))) %>%
+  arrange(desc(days))
+
+Days_missing_LoS
+```
+ 
+```{r}
+# combine the two day_missing tables
+Days_missing_combined <- union_all(Days_missing, Days_missing_LoS) %>%
+  filter(days >= 4) %>%
+  # large number of missing values from numerous hospitals
+  inner_join(select(Sitrep_daily, c("code", "name")), by = "code") %>%
+  unique()
+Days_missing_combined
+```
+
+```{r}
+trusts_to_exclude <- Days_missing_combined %>%
+  pull(code) %>%
+  unique()
+
+Days_missing_combined %>%
+  pull(name) %>%
+  unique()
+
+# Trusts excluded are mainly those seemed to start submitting their data late.
+```
+
+```{r}
+# remove from the data
+Sitrep_daily <- Sitrep_daily %>% 
+   filter(!code %in% trusts_to_exclude)
+
+dim(Sitrep_daily)  
+```
+
+```{r}
+Sitrep_daily
+# there remains the difference between when the total beds data starts and the length of stay data starts - will leave the data like this for now and adjust
+# later if needed.
 
 ```
 
- 
+### Dealing with shorter gaps
+
 
