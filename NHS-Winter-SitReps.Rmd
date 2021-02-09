@@ -386,5 +386,8 @@ Days_missing_combined %>%
 
 Most of the remaining gaps were mostly found in variables relating to long-stay patients. To judge whether these looked like real ‘zero events’ or were more likely to be reporting errors, had a further look at the data:
 
+```{r}
+
+```
 
 
