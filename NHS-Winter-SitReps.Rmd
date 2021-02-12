@@ -409,5 +409,64 @@ Sitrep_daily[cols_to_check_all] <- na_if(Sitrep_daily[cols_to_check_all], 0)
 ```
 
 
-### Checking the derived variables and replacing if needed
+### Feature engineering
+
+- Adding organisational information on sustainability and transformation partnerships (STPs)
+
+The hospital trusts here are mapped to STPs, which provide an aggregated way to visualise the data.
+
+- First, get STP level data:
+
+The following connects to an API, which turned out not to have the relevant detail
+
+```{r}
+# from tutorial: https://www.dataquest.io/blog/r-api-tutorial/
+first_api <- httr::GET("https://directory.spineservices.nhs.uk/ORD/2-0-0/organisations?PrimaryRoleId=RO197")
+
+jsonlite::fromJSON(rawToChar(first_api$content))
+```
+
+The following file does though:
+
+```{r}
+url_stp <- "https://digital.nhs.uk/binaries/content/assets/website-assets/services/ods/data-downloads-other-nhs-organisations/stp-partners-master.xlsx"
+filename_stp <- "STP-Lookup.xlsx"
+download.file(url_stp, destfile = filename_stp, mode = "wb")
+
+```
+```{r}
+# Import STP data:
+
+data_stp <- read_xlsx(path = filename_stp, sheet = "Current STPs", skip = 4)
+data_stp <- data_stp %>% 
+  select(`NHS England Region`, `STP Name`, `ONS STP Code`, Trusts, `ODS Trust Code`) %>%
+  rename(code = `ODS Trust Code`, STP_Code = `ONS STP Code`) %>%
+  filter(!is.na(Trusts))
+  
+
+```
+
+```{r}
+# Now merge with hospital data:
+Sitrep_daily <- Sitrep_daily %>% 
+  left_join(select(data_stp, code, `STP Name`, STP_Code), by = "code")
+
+```
+
+
+- Adding rates of bed occupancy by length of stay
+
+To obtain more comparable data, derived the fraction of occupied beds, which are occupied by long-stay patients over 7, 14 or 21 days:
+
+```{r}
+# given the mismatch between bed occupancy data and length of stay data starting date, will filter for data from 2020-11-30, from when both complete.
+Sitrep_daily_rates <- Sitrep_daily %>%
+  filter(date >= "2020-11-30") %>%
+  mutate(more.than.7.rate = more.than.7.days / total.beds.occd,
+         more.than.14.rate = more.than.14.days / total.beds.occd,
+         more.than.21.rate = more.than.21.days / total.beds.occd)
+Sitrep_daily_rates
+```
+### Aggregation by STP
+
 
