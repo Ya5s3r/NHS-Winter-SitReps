@@ -24,7 +24,7 @@ library(maptools)
 Download data from NHS Digital.
 
 ```{r}
-url <- "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2021/02/UEC-Daily-SitRep-Acute-Web-File-Timeseries.xlsx"
+url <- "https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2021/02/UEC-Daily-SitRep-Acute-Web-File-Timeseries-1.xlsx"
 filename <- "Winter-data-timeseries.xlsx"
 download.file(url, destfile = filename, mode = "wb")
 
@@ -386,8 +386,28 @@ Days_missing_combined %>%
 
 Most of the remaining gaps were mostly found in variables relating to long-stay patients. To judge whether these looked like real ‘zero events’ or were more likely to be reporting errors, had a further look at the data:
 
-```{r}
+```{r, fig.width=8}
+cols_to_check_all <- c(cols_to_check_1, cols_to_check_2)
+# Extract and plot trusts with zeros in their data. 
+Sitrep_daily_small_gaps <- Sitrep_daily %>% 
+  select(code, date, cols_to_check_all) %>% 
+  filter(code %in% Days_missing_combined$code & !code %in% trusts_to_exclude) %>%
+  pivot_longer(cols_to_check_all, names_to = "variable", values_to = "value")
 
+ggplot(Sitrep_daily_small_gaps, aes(x = date, y = value, group = code, color = code)) +
+  theme_bw() +
+  geom_line() +
+  geom_point(size = 1) +
+  facet_wrap("variable", scales = "free_y") 
 ```
 
+As the gaps above were likely errors, not actual values, they will be replaced with NAs. Note the length of stay variables started later than the bed occupancy variables.
+
+```{r}
+# Create a 'clean' version where 0s were replaced with NA
+Sitrep_daily[cols_to_check_all] <- na_if(Sitrep_daily[cols_to_check_all], 0)
+```
+
+
+### Checking the derived variables and replacing if needed
 
