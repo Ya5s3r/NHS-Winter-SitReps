@@ -566,7 +566,7 @@ map_monthly_bedocc <- ggplot() +
   # Define colour palette
   scale_fill_manual(values = c("#dd0031", '#ee7074', '#f2a0a2', '#aad3e5'), drop = FALSE) +
   guides(fill = guide_legend(ncol = 2, byrow = FALSE, label.hjust = 0)) +
-  labs(title = "Mean bed occupancy during winter 2020/21") +
+  labs(title = "Bed occupancy rate during winter 2020/21") +
   # Other design choices
   theme(plot.title = element_text(size = 18*ggplot2:::.pt, colour = "#005078", margin = margin(b = 15, unit = "mm")),
         plot.margin = margin(t = 30, l = 22, b = 30, r = 22, unit = "mm"),
