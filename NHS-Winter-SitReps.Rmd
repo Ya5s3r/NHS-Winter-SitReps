@@ -464,9 +464,128 @@ Sitrep_daily_rates <- Sitrep_daily %>%
   filter(date >= "2020-11-30") %>%
   mutate(more.than.7.rate = more.than.7.days / total.beds.occd,
          more.than.14.rate = more.than.14.days / total.beds.occd,
-         more.than.21.rate = more.than.21.days / total.beds.occd)
+         more.than.21.rate = more.than.21.days / total.beds.occd,
+         occupancy.rate = total.beds.occd / total.beds.open)
 Sitrep_daily_rates
+#write.csv2(Sitrep_daily_rates, file = "Sitrep_daily_rates.csv")
 ```
 ### Aggregation by STP
 
+Adding month and week start column for aggregation.
+
+```{r}
+Sitrep_daily_rates <- Sitrep_daily_rates %>% 
+  mutate(week_start = as.Date(cut(date, breaks = "week", start.on.monday = TRUE)), #can be used to aggregate by week
+         month = format(date, format = "%B"))
+
+# Monthly average on trust level
+
+Sitrep_monthly_average_bytrust <- Sitrep_daily_rates %>% 
+  group_by(nhs.england.region, code, name, `STP Name`, STP_Code, month) %>% 
+  # Count the number of valid observations for each variable
+  summarize(occupancy.rate.valid = sum(!is.na(occupancy.rate)),
+            more.than.7.rate.valid = sum(!is.na(more.than.7.rate)),
+            more.than.14.rate.valid = sum(!is.na(more.than.14.rate)),
+            more.than.21.rate.valid = sum(!is.na(more.than.21.rate)),
+            occupancy.rate = sum(total.beds.occd) / sum(total.beds.open),
+            more.than.7.rate = sum(more.than.7.days) / sum(total.beds.occd), # changed from mean of the rate, which may not be correct
+            more.than.14.rate = sum(more.than.14.days) / sum(total.beds.occd),
+            more.than.21.rate = sum(more.than.21.days) / sum(total.beds.occd))
+
+# Monthly average on STP level
+
+Sitrep_monthly_average_bySTP <- Sitrep_daily_rates %>%
+  filter(!code %in% trusts_to_exclude_for_aggregation) %>%
+  group_by(`STP Name`, STP_Code, month) %>%
+  summarize(occupancy.rate.valid = sum(!is.na(occupancy.rate)),
+            more.than.7.rate.valid = sum(!is.na(more.than.7.rate)),
+            more.than.14.rate.valid = sum(!is.na(more.than.14.rate)),
+            more.than.21.rate.valid = sum(!is.na(more.than.21.rate)),
+            occupancy.rate = sum(total.beds.occd) / sum(total.beds.open),
+            more.than.7.rate = sum(more.than.7.days) / sum(total.beds.occd), # changed from mean of the rate, which may not be correct
+            more.than.14.rate = sum(more.than.14.days) / sum(total.beds.occd),
+            more.than.21.rate = sum(more.than.21.days) / sum(total.beds.occd))
+```
+
+### Visualise via map
+
+Show the rate of bed occupancy on a map with STP boundaries.
+
+```{r}
+# Download and read file containing STP shapes from the ONS website
+# We use the smaller, generalised version for mapping rather than the full boundaries
+# try via URL to geoJSON file from https://geoportal.statistics.gov.uk/datasets/sustainability-and-transformation-partnerships-april-2020-boundaries-en-buc?geometry=-58.021%2C48.021%2C53.732%2C57.304
+
+# this is the latest STP shape file - 2020
+data_json <- geojson_read("https://opendata.arcgis.com/datasets/adb5b6cb582c4828bf11ac05ef9cee0c_0.geojson", what = "sp")
+
+plot(data_json)
+```
+Before spatial objects can be used with ggplot, they have to be converted to a data frame. This can be done using the tidy() function from the broom package. To add our data to the map, we then merged the resulting data frame with the winter data.
+The cut() function provided a convenient way to divide the variables into meaningful intervals and to add labels that could be displayed on the map. Converting variables into factors and ordering the factor levels using factor() ensured that the intervals and months were in the right order. We were then ready to plot and save the map:
+
+```{r}
+# to use ggplot for maps, we first need to turn sp data into a dataframe
+# make sure the region argument so as not to lose the STP identifiers
+data_json_df <- tidy(data_json, region = "stp20cd") # changed stp17 to stp20 inline with new boundaries
+
+# Join with the winter indicator data aggregated by month
+
+STP_shape_monthly <- data_json_df %>% 
+  left_join(Sitrep_monthly_average_bySTP, by = c("id" = "STP_Code"))
+
+
+STP_shape_monthly <- STP_shape_monthly %>%
+  # Divide variable into intervals and turn into factors
+  mutate(occupancy.rate.cut = cut(occupancy.rate, breaks = c(0, 0.85, 0.9, 0.95, 1), 
+                                  labels=c("85% or less", "85-90%", "90-95%", "over 95%")),
+         occupancy.rate.cut = factor(as.character(occupancy.rate.cut),
+                                     levels = rev(levels(occupancy.rate.cut)))) %>%
+  # Remove lines relating England as a whole
+  filter(!is.na(`STP Name`)) %>%
+  # Turn STPs and months into factors (adding March)
+  mutate(id = factor(id, levels = unique(id)),
+         month = factor(month, levels = c("December", "January", "February", "March"))) %>%
+  filter(!is.na(month))
+STP_shape_monthly
+```
+
+```{r}
+# Plot and save the map
+
+map_monthly_bedocc <- ggplot() + 
+  geom_polygon(data = subset(STP_shape_monthly, !is.na(occupancy.rate.cut)), 
+               aes(x = long, y = lat, group = group, fill = occupancy.rate.cut),
+               colour = "white") +
+  # remove grid line
+  theme_void() +
+  # Ensure correct aspect ratio
+  coord_map() +
+  # Facet by month
+  facet_grid(.~month, switch = "x") +
+  # Define colour palette
+  scale_fill_manual(values = c("#dd0031", '#ee7074', '#f2a0a2', '#aad3e5'), drop = FALSE) +
+  guides(fill = guide_legend(ncol = 2, byrow = FALSE, label.hjust = 0)) +
+  labs(title = "Mean bed occupancy during winter 2020/21") +
+  # Other design choices
+  theme(plot.title = element_text(size = 18*ggplot2:::.pt, colour = "#005078", margin = margin(b = 15, unit = "mm")),
+        plot.margin = margin(t = 30, l = 22, b = 30, r = 22, unit = "mm"),
+        legend.background = element_rect(fill = NA, colour = "white"),
+        legend.justification= c(1,0),
+        legend.key = element_blank(),
+        legend.margin = margin(b = 10, l = 20, unit = "mm"), 
+        legend.text = element_text(size = 12*ggplot2:::.pt, colour = "#524c48"), 
+        legend.title = element_blank(),
+        legend.position = "top",
+        legend.spacing.x = unit(10, "mm"),
+        legend.spacing.y = unit(10, "mm"),
+        strip.text = element_text(size = 12*ggplot2:::.pt, colour = "#524c48", margin = margin(b = 10)))
+
+map_monthly_bedocc
+
+```
+
+```{r}
+ggsave("Bedocc_monthly_map.png", map_monthly_bedocc, device = "png",  width = 650, height = 400, units = c("mm"))
+```
 
